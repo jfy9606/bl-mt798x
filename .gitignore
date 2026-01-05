@@ -33,3 +33,4 @@ __pycache__
 output/*
 output_gpt/*
 mt798x_gpt_bin/*
+unopen/*

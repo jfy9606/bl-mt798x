@@ -33,8 +33,8 @@ for json_file in "$input_folder"/*.json; do
     filename_no_extension="${filename%.*}"
 
     # 构建输出文件路径
-    output_file="$output_folder/$filename_no_extension.bin"
-    output_file_sdmmc="$output_folder/$filename_no_extension.sdmmc.bin"
+    output_file="$output_folder/gpt-$filename_no_extension.bin"
+    output_file_sdmmc="$output_folder/gpt-$filename_no_extension.sdmmc.bin"
 
     echo
     echo "=============================="
