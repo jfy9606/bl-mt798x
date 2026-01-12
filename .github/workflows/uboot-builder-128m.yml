@@ -1,0 +1,113 @@
+name: mt798x-uboot
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: '是否发布为预发布版本 (Pre-release)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  WRT_TARGET: MTK-798x
+  WRT_REPO: https://github.com/jfy9606/bl-mt798x
+  WRT_BRANCH: dhcpd
+  PRERELEASE: ${{ github.event.inputs.prerelease }}
+
+permissions: write-all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@main
+
+      - name: ⚙️ Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt -yqq purge firefox
+          sudo -E apt -yqq update
+          sudo -E apt -yqq full-upgrade
+          sudo -E apt -yqq autoremove --purge
+          sudo -E apt -yqq autoclean
+          sudo -E apt -yqq clean
+          sudo -E apt -yqq install dos2unix bison build-essential device-tree-compiler flex gcc-aarch64-linux-gnu libssl-dev qemu-user-static
+          sudo -E systemctl daemon-reload
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+
+          sudo mkdir -p /mnt/build_wrt
+          sudo chown $USER:$USER /mnt/build_wrt
+          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
+
+      - name: ⚙️ Initialization Values
+        run: |
+          echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d")" >> $GITHUB_ENV
+
+      - name: ⬇️ Clone Code
+        run: |
+          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+
+      - name: 🛠️ Compile Firmware
+        run: |
+          cd ./wrt/
+          SOC=mt7981 BOARD=cudy_tr3000-v1 VERSION=2025 MULTI_LAYOUT=1 ./build.sh
+
+      - name: 📦 Package Firmware
+        run: |
+          cd ./wrt/ && mkdir ./upload/
+
+          for FILE in $(find ./output/ -type f -iname "*.*") ; do
+            EXT=$(basename $FILE | cut -d '.' -f 2-)
+            NAME=$(basename $FILE | cut -d '.' -f 1)
+            NEW_FILE="$NAME"_"$WRT_DATE"."$EXT"
+            mv -f $FILE ./upload/$NEW_FILE
+          done
+
+      - name: 📌 Generate release tag
+        id: tag
+        run: |
+          FIRMWARE_NAME="uboot-128M"
+          BUILD_TIME=$(date +"%Y%m%d-%H%M")
+          RELEASE_TAG="${FIRMWARE_NAME}-${BUILD_TIME}"
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+
+          # 生成 release 信息
+          cat > release.txt << EOF
+          ## 📦 Uboot Firmware Release
+
+          **🏷️ Release:** $RELEASE_TAG
+          **📦 Repo:** $WRT_REPO
+          **🌿 Branch:** $WRT_BRANCH
+          **📱 ATF:** atf-20250711
+          **📱 MTK:** uboot-mtk-20250711
+          **📅 Build Date:** $(date +"%Y-%m-%d %H:%M:%S")
+
+          ## 📥 Download
+
+          Download the firmware files from the assets below.
+
+          ## 🚧 Notice
+
+          该固件为 DHCP 三分区 uboot ，支持原厂 ubi 大小 64MB，扩容 ubi 分区 112MB，最大 ubi 分区 122MB
+
+          ---
+
+          Built using [GitHub Actions](https://github.com/features/actions)
+          EOF
+
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 📤 Upload firmware to release
+        uses: softprops/action-gh-release@v2
+        if: steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          body_path: release.txt
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+          files: ./wrt/upload/*.bin
