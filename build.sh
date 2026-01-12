@@ -105,7 +105,7 @@ if [ -f "$ATF_DIR/build/${SOC}/release/fip.bin" ]; then
 		FIP_NAME="${SOC}_${BOARD}_${VERSION}-fip"
 		# Append '-dhcpd' for different VERSION
 		if [ "$VERSION" = "2022" ] || [ "$VERSION" = "2023" ] || [ "$VERSION" = "2024" ] || [ "$VERSION" = "2025" ]; then
-			FIP_NAME="${FIP_NAME}-dhcpd-Yuzhii"
+			FIP_NAME="${FIP_NAME}-dhcpd"
 		fi
 	if [ "$fixedparts" = "1" ]; then
 		FIP_NAME="${FIP_NAME}-fixed-parts"
